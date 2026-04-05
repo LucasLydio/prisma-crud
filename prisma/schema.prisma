@@ -3,16 +3,16 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 model Profile {
   id          String   @id @default(uuid())
-  profileName String
+  profileName String   @unique
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  user        User?    @relation(fields: [id], references: [profileId])
+  users       User[]
 }
 
 model User {
@@ -20,8 +20,19 @@ model User {
   name      String
   email     String   @unique
   password  String
-  profileId String?  @unique
+  profileId String?
   profile   Profile? @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  tasks     Task[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Task {
+  id        String   @id @default(uuid())
+  title     String
+  done      Boolean  @default(false)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

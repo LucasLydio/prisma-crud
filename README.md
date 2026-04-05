@@ -1,102 +1,55 @@
+# Todo List API (Express + TypeScript + Prisma + Postgres)
 
-# User CRUD with Profile — Express + Prisma
+API base para um todo-list, pensada para ser consumida por um frontend e por outros serviços (logs, analytics/contagens, etc.).
 
-Tech documentation for a **CRUD system** that manages **Users** and **Profiles** using **Node.js + Express + Prisma ORM**.
+## Stack
 
-This project satisfies the practical requirements:
+- Node.js 20+
+- Express + TypeScript
+- Prisma + PostgreSQL
+- JWT auth (`Authorization: Bearer <token>`)
+- CORS adapter (configurado via `.env`)
 
-- **Entities:** User + Profile  
-- **Relationship:** **1:1 (User → Profile)**  
-- **CRUD:** Full CRUD for **User** (and **Profile** routes included as requested)  
-- **Create flow:** When creating a user, allow **creating the profile together**  
-- **Email uniqueness:** Do **not** allow duplicate emails  
-- **Listing:** List users including **profile data** using Prisma relation (`include`)  
+## Quick Start (Local)
 
----
-
-## 1. Tech Stack
-
-- **Runtime:** Node.js `X.Y.Z`
-- **Framework:** Express `X.Y.Z`
-- **ORM:** Prisma `X.Y.Z`
-- **Database:** SQLite (dev) or PostgreSQL/MySQL (optional)
-
-> Replace versions after installation:
-```bash
-node -v
-npm -v
-npx prisma -v
-npm list express
-```
-
----
-
-## 2. Project Setup
-
-### 2.1 Clone repository
+1) Instalar dependências
 
 ```bash
-git clone <YOUR_REPO_URL>
-cd <YOUR_REPO_FOLDER>
-```
-
-### 2.2 Install dependencies
-
-```bash
+cd prisma-crud
 npm install
 ```
 
-### 2.3 Environment configuration
+2) Configurar variáveis de ambiente
 
-Create a `.env` file at the project root.
+Crie `.env` (baseado em `.env.example`) e ajuste os valores.
 
-**Option A — SQLite (recommended for class/demo):**
-
-```env
-DATABASE_URL="file:./dev.db"
-```
-
-**Option B — PostgreSQL example:**
-
-```env
-DATABASE_URL="postgresql://user:pass@localhost:5432/crud_users?schema=public"
-```
-
-### 2.4 Prisma setup (generate + migrate)
+3) Subir Postgres (Docker)
 
 ```bash
-npx prisma generate
-npx prisma migrate dev
+npm run db:up
 ```
 
-(Optional) Open Prisma Studio:
+4) Criar tabelas + seeds (migrations Prisma)
 
 ```bash
-npx prisma studio
+npm run prisma:generate
+npm run prisma:migrate
 ```
 
-### 2.5 Run the API
+As migrations criam:
+- Tabelas: `User`, `Profile`, `Task`
+- Perfis seed: `admin` e `user`
+- Usuário admin seed: `user@user.com` / `user1234`
 
-Recommended scripts:
-
-* `npm run dev` for development (nodemon/tsx/ts-node)
-* `npm start` for production
-
-Example:
+5) Rodar a API
 
 ```bash
 npm run dev
 ```
 
-Default URL:
+URL padrão: `http://localhost:3000`
 
-* `http://localhost:3000`
-
----
-
-## 3. Project Structure
-
-Suggested structure (Controller / Service / Routes), aligned with a simple modular backend:
+## Padrão do Projeto (DTO + Repository + Service + Controller)
 
 ```txt
 prisma/
@@ -105,366 +58,117 @@ prisma/
 
 src/
   server.ts
-  app.ts
+  prismaClient.ts
 
-  prisma/
-    client.ts
+  config/
+    env.ts
+    database.ts
 
-  routes/
-    users.routes.ts
-    profiles.routes.ts
+  adapters/
+    http/
+      cors.ts
 
-  controllers/
-    users.controller.ts
-    profiles.controller.ts
+  dtos/
+    userDtos.ts
+    profileDtos.ts
+    taskDtos.ts
+
+  repositories/
+    userRepository.ts
+    profileRepository.ts
+    taskRepository.ts
 
   services/
-    users.service.ts
-    profiles.service.ts
+    usersService.ts
+    profilesService.ts
+    tasksService.ts
+
+  controllers/
+    userController.ts
+    profileController.ts
+    taskController.ts
+
+  routes/
+    users.ts
+    profiles.ts
+    tasks.ts
 
   middlewares/
-    error.middleware.ts
-
-  utils/
-    httpError.ts
+    auth.ts
+    errorHandler.ts
 ```
 
-### Responsibilities
+Responsabilidades:
+- `controllers/`: camada HTTP (DTO in/out, status codes)
+- `services/`: regras de negócio
+- `repositories/`: persistência (Prisma)
+- `dtos/`: contratos de request/response + mappers
+- `adapters/`: concerns HTTP (CORS)
+- `config/`: env + database
 
-* **routes/**: maps endpoints to controllers
-* **controllers/**: HTTP layer (req/res), validation orchestration, status codes
-* **services/**: business logic + Prisma queries
-* **prisma/**: Prisma client instance and schema
-* **middlewares/**: centralized error handler
+## Variáveis de Ambiente
 
----
+- `PORT` (default: `3000`)
+- `DATABASE_URL` (Postgres connection string)
+- `JWT_SECRET` (obrigatório)
+- `CORS_ORIGINS` (default: `*`, aceita lista separada por vírgula e wildcards)
 
-## 4. Expected Database Modeling
+## Auth (JWT)
 
-### 4.1 Entities
+As rotas de `/tasks` exigem `Authorization: Bearer <jwt>`.
 
-#### User
+O middleware lê o user id do token via:
+- `sub` (recomendado), ou
+- `userId`
 
-* `id`
-* `name`
-* `email`
-* `password`
-* `profileId`
-
-#### Profile
-
-* `id`
-* `profileName`
-
-### 4.2 Constraints (Mandatory)
-
-* `User.email` must be **unique**
-* Relationship must be **1:1** (one user → one profile)
-
-### 4.3 Prisma Modeling (Recommended)
-
-This schema enforces:
-
-* `email` unique
-* `profileId` unique (guarantees 1:1)
-
-```prisma
-model User {
-  id        String   @id @default(uuid())
-  name      String
-  email     String   @unique
-  password  String
-  profileId String   @unique
-  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model Profile {
-  id          String @id @default(uuid())
-  profileName String
-  user        User?
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-}
-```
-
-> Notes:
-
-* `profileId @unique` makes the relationship truly **1:1**
-* `onDelete: Cascade` ensures user deletion can remove profile relationship safely (you can adjust to your preference)
-
----
-
-## 5. API Routes
-
-Base URL:
-
-* `http://localhost:3000`
-
-### 5.1 Users (Required CRUD)
-
-| Method | Route        | Description                                    |
-| ------ | ------------ | ---------------------------------------------- |
-| POST   | `/users`     | Create user (allows profile creation together) |
-| GET    | `/users`     | List users (must include profile)              |
-| GET    | `/users/:id` | Get user details (include profile)             |
-| PUT    | `/users/:id` | Update user (optional profile update)          |
-| DELETE | `/users/:id` | Delete user                                    |
-
-### 5.2 Profiles (Included CRUD)
-
-| Method | Route           | Description                                   |
-| ------ | --------------- | --------------------------------------------- |
-| POST   | `/profiles`     | Create profile                                |
-| GET    | `/profiles`     | List profiles                                 |
-| GET    | `/profiles/:id` | Get profile details (optionally include user) |
-| PUT    | `/profiles/:id` | Update profile                                |
-| DELETE | `/profiles/:id` | Delete profile                                |
-
----
-
-## 6. Request/Response Examples
-
-### 6.1 Create User with Profile (Required)
-
-**POST** `/users`
-
-Request:
-
-```json
-{
-  "name": "John Doe",
-  "email": "john@email.com",
-  "password": "123456",
-  "profile": {
-    "profileName": "admin"
-  }
-}
-```
-
-Expected response (example):
-
-```json
-{
-  "id": "0db46d6d-6e8d-4d5c-9f3a-9bbdd8b7e1d7",
-  "name": "John Doe",
-  "email": "john@email.com",
-  "profile": {
-    "id": "58a1dba9-0d18-4f46-9b2a-5cdd3aa3ed8a",
-    "profileName": "admin"
-  },
-  "createdAt": "2026-03-02T12:00:00.000Z",
-  "updatedAt": "2026-03-02T12:00:00.000Z"
-}
-```
-
-Implementation notes:
-
-* Use Prisma nested create:
-
-  * `profile: { create: { profileName } }`
-* Hash the password before saving (bcrypt)
-* Handle duplicate email with Prisma error `P2002`
-
----
-
-### 6.2 Duplicate Email Error (Required)
-
-If a user tries to register using an email that already exists, the API must reject it.
-
-Suggested error response:
-
-```json
-{
-  "message": "Email already in use",
-  "code": "EMAIL_DUPLICATE"
-}
-```
-
-> Prisma will throw `P2002` for unique constraint violation.
-
----
-
-### 6.3 List Users with Profile (Required)
-
-**GET** `/users`
-
-Expected response:
-
-```json
-[
-  {
-    "id": "0db46d6d-6e8d-4d5c-9f3a-9bbdd8b7e1d7",
-    "name": "John Doe",
-    "email": "john@email.com",
-    "profile": {
-      "id": "58a1dba9-0d18-4f46-9b2a-5cdd3aa3ed8a",
-      "profileName": "admin"
-    }
-  }
-]
-```
-
-Implementation notes:
-
-* Use Prisma relation include:
-
-  * `prisma.user.findMany({ include: { profile: true } })`
-
----
-
-### 6.4 Get User by ID with Profile
-
-**GET** `/users/:id`
-
-Example:
-**GET** `/users/0db46d6d-6e8d-4d5c-9f3a-9bbdd8b7e1d7`
-
-Response:
-
-```json
-{
-  "id": "0db46d6d-6e8d-4d5c-9f3a-9bbdd8b7e1d7",
-  "name": "John Doe",
-  "email": "john@email.com",
-  "profile": {
-    "id": "58a1dba9-0d18-4f46-9b2a-5cdd3aa3ed8a",
-    "profileName": "admin"
-  }
-}
-```
-
----
-
-### 6.5 Update User (Optional profile update)
-
-**PUT** `/users/:id`
-
-Request (update name + profile name):
-
-```json
-{
-  "name": "John Updated",
-  "profile": {
-    "profileName": "manager"
-  }
-}
-```
-
-Response:
-
-```json
-{
-  "id": "0db46d6d-6e8d-4d5c-9f3a-9bbdd8b7e1d7",
-  "name": "John Updated",
-  "email": "john@email.com",
-  "profile": {
-    "id": "58a1dba9-0d18-4f46-9b2a-5cdd3aa3ed8a",
-    "profileName": "manager"
-  }
-}
-```
-
-Implementation notes:
-
-* Update user fields with `prisma.user.update(...)`
-* Update profile through nested update:
-
-  * `profile: { update: { profileName } }`
-
----
-
-### 6.6 Delete User
-
-**DELETE** `/users/:id`
-
-Response:
-
-```json
-{
-  "message": "User deleted successfully"
-}
-```
-
----
-
-### 6.7 Create Profile (Profiles CRUD)
-
-**POST** `/profiles`
-
-Request:
-
-```json
-{
-  "profileName": "admin"
-}
-```
-
-Response:
-
-```json
-{
-  "id": "b9cfe6d9-70bf-41a2-9d8e-3fd3b4c845f7",
-  "profileName": "admin"
-}
-```
-
----
-
-### 6.8 List Profiles
-
-**GET** `/profiles`
-
-Response:
-
-```json
-[
-  {
-    "id": "b9cfe6d9-70bf-41a2-9d8e-3fd3b4c845f7",
-    "profileName": "admin"
-  }
-]
-```
-
----
-
-## 7. Quick Testing (cURL)
-
-### Create user with profile
+Para descobrir o `id` do usuário seed (`user@user.com`), use o Prisma Studio:
 
 ```bash
-curl -X POST http://localhost:3000/users \
+npm run prisma:studio
+```
+
+Para assinar um token (exemplo):
+
+```bash
+node -e "const jwt=require('jsonwebtoken'); console.log(jwt.sign({}, 'YOUR_JWT_SECRET', { subject: 'USER_ID', expiresIn: '1d' }))"
+```
+
+## Rotas
+
+### Users
+- `POST /users` `{ name, email, password }`
+- `GET /users`
+- `GET /users/:id`
+- `PUT /users/:id` `{ name?, email?, password? }`
+- `DELETE /users/:id`
+
+### Profiles
+- `POST /profiles` `{ profileName }`
+- `GET /profiles`
+- `GET /profiles/:id`
+- `PUT /profiles/:id` `{ profileName? }`
+- `DELETE /profiles/:id`
+
+### Tasks (Autenticado)
+- `POST /tasks` `{ title, done? }`
+- `GET /tasks` (somente tasks do usuário autenticado)
+- `GET /tasks/:id` (somente se for do usuário autenticado)
+- `PUT /tasks/:id` `{ title?, done? }` (somente se for do usuário autenticado)
+- `DELETE /tasks/:id` (somente se for do usuário autenticado)
+
+## Exemplos (cURL)
+
+Criar task:
+
+```bash
+curl -X POST http://localhost:3000/tasks \
   -H "Content-Type: application/json" \
-  -d '{"name":"John Doe","email":"john@email.com","password":"123456","profile":{"profileName":"admin"}}'
+  -H "Authorization: Bearer <JWT>" \
+  -d "{\"title\":\"Buy milk\"}"
 ```
 
-### List users
+Listar tasks:
 
 ```bash
-curl http://localhost:3000/users
-```
-
-### Create profile
-
-```bash
-curl -X POST http://localhost:3000/profiles \
-  -H "Content-Type: application/json" \
-  -d '{"profileName":"admin"}'
-```
-
----
-
-## 8. Delivery Checklist
-
-* [ ] README includes: setup steps, dependencies, runtime version, ORM version
-* [ ] User CRUD complete
-* [ ] Profile routes included (CRUD)
-* [ ] Create user with profile in same request
-* [ ] Unique email enforced (Prisma unique + `P2002` handling)
-* [ ] List users includes profile (Prisma `include`)
-
-```
+curl http://localhost:3000/tasks -H "Authorization: Bearer <JWT>"
 ```
